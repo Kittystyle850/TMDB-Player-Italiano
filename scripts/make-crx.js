@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Crea il ZIP e il CRX firmato dell'estensione.
+ * Crea i ZIP (flat + con cartella) e il CRX firmato dell'estensione.
  *
  * Uso: node scripts/make-crx.js <version> <outputDir> <keyPath>
  */
@@ -25,7 +25,12 @@ const INCLUDE = [
 function log(msg) { console.log(msg); }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
 
-function createZip(outputPath) {
+/**
+ * Crea uno ZIP.
+ * @param {string} outputPath - percorso del file .zip da creare
+ * @param {string|null} rootFolder - nome cartella radice dentro lo zip (null = flat)
+ */
+function createZip(outputPath, rootFolder = null) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
     const archive = archiver('zip', { zlib: { level: 9 } });
@@ -51,12 +56,16 @@ function createZip(outputPath) {
         return;
       }
       const stat = fs.statSync(fullPath);
+
+      // Se rootFolder è specificato, prepend al path interno
+      const archivePath = rootFolder ? `${rootFolder}/${item}` : item;
+
       if (stat.isDirectory()) {
-        archive.directory(fullPath, item);
-        log(`  + ${item}/ (cartella)`);
+        archive.directory(fullPath, archivePath);
+        log(`  + ${archivePath}/ (cartella)`);
       } else {
-        archive.file(fullPath, { name: item });
-        log(`  + ${item}`);
+        archive.file(fullPath, { name: archivePath });
+        log(`  + ${archivePath}`);
       }
       count++;
     });
@@ -94,32 +103,40 @@ async function main() {
 
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const zipPath = path.join(outputDir, `tmdb-player-v${version}.zip`);
-  const crxPath = path.join(outputDir, `tmdb-player-v${version}.crx`);
+  const zipFlatPath   = path.join(outputDir, `tmdb-player-v${version}.zip`);
+  const zipFolderPath = path.join(outputDir, `tmdb-player-v${version}-folder.zip`);
+  const crxPath       = path.join(outputDir, `tmdb-player-v${version}.crx`);
+  const folderName    = `tmdb-player-v${version}`;
 
-  // 1. Crea ZIP
-  log('📦 Creo il ZIP...');
+  // 1. ZIP flat (per AMO / Chrome Web Store)
+  log('📦 Creo il ZIP (flat, per AMO/Chrome Web Store)...');
   try {
-    const zipSize = await createZip(zipPath);
-    log(`✅ ZIP creato: ${path.basename(zipPath)} (${(zipSize / 1024).toFixed(1)} KB)`);
+    const size = await createZip(zipFlatPath, null);
+    log(`✅ ZIP flat creato: ${path.basename(zipFlatPath)} (${(size / 1024).toFixed(1)} KB)`);
   } catch (e) {
-    fail(`Errore creando lo ZIP: ${e.message}`);
+    fail(`Errore creando lo ZIP flat: ${e.message}`);
   }
   log('');
 
-  // 2. Crea CRX
-  // crx3 si aspetta un array di file da includere, non uno stream.
-  // Gli passiamo i file dell'estensione e le opzioni per scrivere direttamente il .crx
+  // 2. ZIP con cartella (per estrazione manuale)
+  log('📦 Creo il ZIP (con cartella, per estrazione manuale)...');
+  try {
+    const size = await createZip(zipFolderPath, folderName);
+    log(`✅ ZIP cartella creato: ${path.basename(zipFolderPath)} (${(size / 1024).toFixed(1)} KB)`);
+  } catch (e) {
+    fail(`Errore creando lo ZIP con cartella: ${e.message}`);
+  }
+  log('');
+
+  // 3. CRX firmato
   log('🔐 Creo il CRX firmato...');
   try {
     const files = INCLUDE.map(item => path.join(ROOT, item));
-
     await crx3(files, {
       keyPath: keyPath,
       crxPath: crxPath,
-      zipPath: zipPath
+      zipPath: zipFlatPath
     });
-
     const crxSize = fs.statSync(crxPath).size;
     log(`✅ CRX creato: ${path.basename(crxPath)} (${(crxSize / 1024).toFixed(1)} KB)`);
   } catch (e) {
@@ -130,7 +147,8 @@ async function main() {
 
   log('');
   log('🎉 Build completata!');
-  log(`   📦 ${zipPath}`);
+  log(`   📦 ${zipFlatPath}`);
+  log(`   📦 ${zipFolderPath}`);
   log(`   📦 ${crxPath}`);
 }
 
