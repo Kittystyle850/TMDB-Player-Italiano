@@ -15,11 +15,6 @@ on:
           - minor
           - major
           - none
-      keep:
-        description: 'Numero di release da mantenere (default: 5)'
-        type: number
-        required: false
-        default: 5
 
 permissions:
   contents: write
@@ -239,25 +234,26 @@ jobs:
             #### Estrazione manuale (`.zip` con cartella)
             Usa `tmdb-player-v${{ steps.bump.outputs.new }}-folder.zip`: estrailo e carica la cartella con **Load unpacked**.
 
-      - name: 🗑️ Cancella release vecchie
+      - name: 🗑️ Cancella tutte le release vecchie
         if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEEP: ${{ github.event_name == 'workflow_dispatch' && inputs.keep || 5 }}
         run: |
-          echo "🧹 Mantengo solo le ultime $KEEP release"
+          CURRENT_TAG="${{ steps.bump.outputs.tag }}"
+          echo "🧹 Mantengo SOLO la release corrente: $CURRENT_TAG"
 
-          # Ottieni la lista dei tag ordinati dal più recente
-          TAGS=$(gh release list --limit 100 --json tagName,createdAt \
-            --jq "sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].tagName")
+          # Ottieni tutti i tag delle release, escludendo quella appena creata
+          TAGS=$(gh release list --limit 200 --json tagName \
+            --jq ".[] | select(.tagName != \"$CURRENT_TAG\") | .tagName")
 
           if [ -z "$TAGS" ]; then
-            echo "✅ Nessuna release da cancellare"
+            echo "✅ Nessuna release vecchia da cancellare"
             exit 0
           fi
 
           echo "📋 Release da cancellare:"
           echo "$TAGS"
+          echo ""
 
           COUNT=0
           while IFS= read -r tag; do
@@ -267,6 +263,7 @@ jobs:
             COUNT=$((COUNT + 1))
           done <<< "$TAGS"
 
+          echo ""
           echo "✅ Cancellate $COUNT release vecchie"
 
       - name: 📋 Riepilogo
@@ -283,7 +280,7 @@ jobs:
             echo "| Versione precedente | \`${{ steps.bump.outputs.current }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Nuova versione | \`${{ steps.bump.outputs.new }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Tag | \`${{ steps.bump.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
-            echo "| Release mantenute | \`${{ github.event_name == 'workflow_dispatch' && inputs.keep || 5 }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Release mantenute | **1** (solo l'ultima) |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📦 File generati" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
