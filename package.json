@@ -1,6 +1,6 @@
 {
   "name": "tmdb-player-extension",
-  "version": "1.2.3",
+  "version": "1.2.1",
   "description": "Estensione browser per lo streaming in italiano su TheMovieDB",
   "private": true,
   "scripts": {
