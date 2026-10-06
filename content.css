@@ -2,7 +2,6 @@
    TMDB Player – Styles
    ================================ */
 
-/* Pulsante Play */
 .tmdb-player-button {
   display: inline-flex;
   align-items: center;
@@ -27,13 +26,8 @@
   box-shadow: 0 6px 18px rgba(1, 180, 228, .5);
   filter: brightness(1.08);
 }
-.tmdb-player-button:active {
-  transform: translateY(0);
-}
-.tmdb-player-btn-icon {
-  font-size: 12px;
-  display: inline-block;
-}
+.tmdb-player-button:active { transform: translateY(0); }
+.tmdb-player-btn-icon { font-size: 12px; display: inline-block; }
 .tmdb-player-button-floating {
   position: fixed !important;
   bottom: 24px;
@@ -42,7 +36,6 @@
   z-index: 9998;
 }
 
-/* Modal */
 #tmdb-player-modal {
   display: none;
   position: fixed;
@@ -78,7 +71,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Header del modal */
 .tmdb-player-header {
   display: flex;
   align-items: center;
@@ -95,7 +87,6 @@
   letter-spacing: .3px;
   flex-shrink: 0;
 }
-
 .tmdb-player-controls {
   display: flex;
   gap: 12px;
@@ -122,14 +113,9 @@
   font-family: inherit;
 }
 .tmdb-player-field select:hover,
-.tmdb-player-field select:focus {
-  border-color: #01b4e4;
-}
+.tmdb-player-field select:focus { border-color: #01b4e4; }
 
-.tmdb-player-actions {
-  display: flex;
-  gap: 6px;
-}
+.tmdb-player-actions { display: flex; gap: 6px; }
 .tmdb-player-actions button {
   background: rgba(255, 255, 255, .08);
   color: #fff;
@@ -150,11 +136,8 @@
   border-color: #01b4e4;
   color: #fff;
 }
-.tmdb-player-actions #tmdb-player-close {
-  font-size: 22px;
-}
+.tmdb-player-actions #tmdb-player-close { font-size: 22px; }
 
-/* Body + iframe */
 .tmdb-player-body {
   flex: 1;
   background: #000;
@@ -168,7 +151,6 @@
   background: #000;
 }
 
-/* Loading */
 .tmdb-player-loading {
   position: absolute;
   inset: 0;
@@ -182,15 +164,8 @@
   z-index: 2;
   transition: opacity .3s;
 }
-.tmdb-player-loading.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-.tmdb-player-loading p {
-  margin: 0;
-  font-size: 13px;
-  opacity: .7;
-}
+.tmdb-player-loading.hidden { opacity: 0; pointer-events: none; }
+.tmdb-player-loading p { margin: 0; font-size: 13px; opacity: .7; }
 .tmdb-player-spinner {
   width: 44px;
   height: 44px;
@@ -201,7 +176,6 @@
 }
 @keyframes tmdbSpin { to { transform: rotate(360deg); } }
 
-/* Footer */
 .tmdb-player-footer {
   padding: 8px 18px;
   background: #032541;
@@ -218,7 +192,6 @@
 .tmdb-player-hint-ok   { color: #90cea1; font-weight: 600; }
 .tmdb-player-hint-warn { color: #ffb74d; font-weight: 600; }
 
-/* Responsive */
 @media (max-width: 720px) {
   .tmdb-player-content { inset: 0; border-radius: 0; }
   .tmdb-player-field span { display: none; }

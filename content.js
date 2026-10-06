@@ -1,68 +1,54 @@
 /**
  * TMDB Player – Content Script
- * Inietta un pulsante Play nelle pagine di themoviedb.org e apre
- * un player in overlay forzando la lingua italiana (quando supportato).
+ * Inietta un pulsante "Guarda in Italiano" nelle pagine di themoviedb.org
+ * e apre un player in overlay forzando la lingua italiana.
  */
 (function () {
   'use strict';
 
-  // ============ CONFIGURAZIONE SERVER ============
-  // Ogni server riceve (tmdbId, lang, season, episode).
-  // VixSrc è il default perché è italiano-native.
+  // ============ SERVER CONFIGURATI ============
   const SERVERS = {
     vixsrc: {
       name: '🇮🇹 VixSrc (consigliato)',
       supportsAudio: true,
-      movie: (id, lang) =>
-        `https://vixsrc.to/movie/${id}?lang=${lang}&autoPlay=true`,
-      tv: (id, s, e, lang) =>
-        `https://vixsrc.to/tv/${id}/${s}/${e}?lang=${lang}&autoPlay=true`
+      movie: (id, lang) => `https://vixsrc.to/movie/${id}?lang=${lang}&autoPlay=true`,
+      tv: (id, s, e, lang) => `https://vixsrc.to/tv/${id}/${s}/${e}?lang=${lang}&autoPlay=true`
+    },
+    embed_su: {
+      name: 'Embed.su',
+      supportsAudio: true,
+      movie: (id, lang) => `https://embed.su/embed/movie/${id}?lang=${lang}`,
+      tv: (id, s, e, lang) => `https://embed.su/embed/tv/${id}/${s}/${e}?lang=${lang}`
+    },
+    vidlink: {
+      name: 'VidLink.pro',
+      supportsAudio: true,
+      movie: (id, lang) => `https://vidlink.pro/movie/${id}?lang=${lang}`,
+      tv: (id, s, e, lang) => `https://vidlink.pro/tv/${id}/${s}/${e}?lang=${lang}`
     },
     vidsrc_net: {
       name: 'VidSrc.net',
-      supportsAudio: false, // supporta solo sottotitoli
-      movie: (id, lang) =>
-        `https://vidsrc.net/embed/movie?tmdb=${id}&ds_lang=${lang}&lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://vidsrc.net/embed/tv?tmdb=${id}&season=${s}&episode=${e}&ds_lang=${lang}&lang=${lang}`
+      supportsAudio: false,
+      movie: (id, lang) => `https://vidsrc.net/embed/movie?tmdb=${id}&ds_lang=${lang}&lang=${lang}`,
+      tv: (id, s, e, lang) => `https://vidsrc.net/embed/tv?tmdb=${id}&season=${s}&episode=${e}&ds_lang=${lang}&lang=${lang}`
     },
     vidsrc_to: {
       name: 'VidSrc.to',
       supportsAudio: false,
       movie: (id, lang) => `https://vidsrc.to/embed/movie/${id}?lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://vidsrc.to/embed/tv/${id}/${s}/${e}?lang=${lang}`
-    },
-    embed_su: {
-      name: 'Embed.su',
-      supportsAudio: true,
-      movie: (id, lang) =>
-        `https://embed.su/embed/movie/${id}?lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://embed.su/embed/tv/${id}/${s}/${e}?lang=${lang}`
-    },
-    vidlink: {
-      name: 'VidLink.pro',
-      supportsAudio: true,
-      movie: (id, lang) =>
-        `https://vidlink.pro/movie/${id}?lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://vidlink.pro/tv/${id}/${s}/${e}?lang=${lang}`
+      tv: (id, s, e, lang) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}?lang=${lang}`
     },
     '2embed': {
       name: '2Embed',
       supportsAudio: false,
       movie: (id, lang) => `https://www.2embed.cc/embed/${id}?lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}&lang=${lang}`
+      tv: (id, s, e, lang) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}&lang=${lang}`
     },
     multiembed: {
       name: 'MultiEmbed',
       supportsAudio: false,
-      movie: (id, lang) =>
-        `https://multiembed.mov/?video_id=${id}&tmdb=1&lang=${lang}`,
-      tv: (id, s, e, lang) =>
-        `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&lang=${lang}`
+      movie: (id, lang) => `https://multiembed.mov/?video_id=${id}&tmdb=1&lang=${lang}`,
+      tv: (id, s, e, lang) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}&lang=${lang}`
     }
   };
 
@@ -76,36 +62,28 @@
   };
 
   // ============ STATO ============
-  let state = {
+  const state = {
     server: 'vixsrc',
-    lang: 'it',
-    autoplay: true
+    lang: 'it'
   };
 
-  // Carica preferenze salvate
-  chrome.storage?.sync?.get(['server', 'lang', 'autoplay'], (r) => {
+  // ============ PREFERENZE ============
+  chrome.storage?.sync?.get(['server', 'lang'], (r) => {
     if (r?.server && SERVERS[r.server]) state.server = r.server;
     if (r?.lang && LANGS[r.lang]) state.lang = r.lang;
-    if (typeof r?.autoplay === 'boolean') state.autoplay = r.autoplay;
-
-    // Se il modal è già aperto, aggiorna i select
     const sSel = document.getElementById('tmdb-player-server');
     const lSel = document.getElementById('tmdb-player-lang');
     if (sSel) sSel.value = state.server;
     if (lSel) lSel.value = state.lang;
   });
 
-  // ============ RILEVAMENTO MEDIA ============
+  // ============ MEDIA DETECTION ============
   function getMediaInfo() {
     const path = location.pathname;
 
-    // /movie/12345-slug
     const movieMatch = path.match(/^\/movie\/(\d+)/);
-    if (movieMatch) {
-      return { type: 'movie', tmdbId: movieMatch[1] };
-    }
+    if (movieMatch) return { type: 'movie', tmdbId: movieMatch[1] };
 
-    // /tv/12345-slug  |  /tv/12345/season/1  |  /tv/12345/season/1/episode/2
     const tvMatch = path.match(/^\/tv\/(\d+)/);
     if (tvMatch) {
       const sMatch = path.match(/\/season\/(\d+)/);
@@ -117,7 +95,6 @@
         episode: eMatch ? eMatch[1] : '1'
       };
     }
-
     return null;
   }
 
@@ -129,7 +106,7 @@
       : srv.tv(media.tmdbId, media.season, media.episode, lang);
   }
 
-  // ============ CREAZIONE MODAL ============
+  // ============ MODAL ============
   function createModal() {
     if (document.getElementById('tmdb-player-modal')) return;
 
@@ -140,26 +117,22 @@
       <div class="tmdb-player-content">
         <div class="tmdb-player-header">
           <span class="tmdb-player-title">🎬 TMDB Player</span>
-
           <div class="tmdb-player-controls">
             <label class="tmdb-player-field">
               <span>Server</span>
               <select id="tmdb-player-server"></select>
             </label>
-
             <label class="tmdb-player-field">
               <span>Lingua</span>
               <select id="tmdb-player-lang"></select>
             </label>
           </div>
-
           <div class="tmdb-player-actions">
             <button id="tmdb-player-reload" title="Ricarica">↻</button>
             <button id="tmdb-player-external" title="Apri in nuova scheda">↗</button>
             <button id="tmdb-player-close" title="Chiudi (Esc)">×</button>
           </div>
         </div>
-
         <div class="tmdb-player-body">
           <div class="tmdb-player-loading" id="tmdb-player-loading">
             <div class="tmdb-player-spinner"></div>
@@ -169,7 +142,6 @@
                   referrerpolicy="origin"
                   allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
         </div>
-
         <div class="tmdb-player-footer">
           <span id="tmdb-player-meta"></span>
           <span id="tmdb-player-hint"></span>
@@ -177,7 +149,6 @@
       </div>`;
     document.body.appendChild(modal);
 
-    // Popola server
     const serverSel = modal.querySelector('#tmdb-player-server');
     Object.entries(SERVERS).forEach(([k, v]) => {
       const o = document.createElement('option');
@@ -187,7 +158,6 @@
     });
     serverSel.value = state.server;
 
-    // Popola lingue
     const langSel = modal.querySelector('#tmdb-player-lang');
     Object.entries(LANGS).forEach(([k, v]) => {
       const o = document.createElement('option');
@@ -197,7 +167,6 @@
     });
     langSel.value = state.lang;
 
-    // Event listeners
     serverSel.addEventListener('change', () => {
       state.server = serverSel.value;
       chrome.storage?.sync?.set({ server: state.server });
@@ -220,14 +189,12 @@
       if (ev.key === 'r' && ev.ctrlKey) { ev.preventDefault(); loadVideo(); }
     });
 
-    // Rimuove loader quando iframe carica
     modal.querySelector('#tmdb-player-iframe').addEventListener('load', () => {
       const loader = modal.querySelector('#tmdb-player-loading');
       if (loader) loader.classList.add('hidden');
     });
   }
 
-  // ============ CARICAMENTO VIDEO ============
   function loadVideo() {
     const media = getMediaInfo();
     if (!media) return;
@@ -270,7 +237,6 @@
     if (url) window.open(url, '_blank', 'noopener');
   }
 
-  // ============ APERTURA/CHIUSURA MODAL ============
   function openModal() {
     createModal();
     loadVideo();
@@ -287,7 +253,7 @@
     if (iframe) iframe.src = 'about:blank';
   }
 
-  // ============ INIEZIONE PULSANTE ============
+  // ============ PULSANTE ============
   function injectButton() {
     const media = getMediaInfo();
     if (!media) return;
@@ -300,7 +266,6 @@
     btn.title = 'Apri il player (P)';
     btn.addEventListener('click', openModal);
 
-    // Prova posizioni preferenziali sull'header
     const target =
       document.querySelector('.header .action_bar') ||
       document.querySelector('.header_info .action_bar') ||
@@ -314,7 +279,6 @@
       document.body.appendChild(btn);
     }
 
-    // Scorciatoia tastiera "P" (solo se non si sta scrivendo)
     document.addEventListener('keydown', (ev) => {
       const tag = (ev.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || ev.target.isContentEditable) return;
@@ -322,23 +286,22 @@
         ev.preventDefault();
         openModal();
       }
-    }, { once: false });
+    });
   }
 
-  // ============ INIT + SPA NAVIGATION ============
+  // ============ INIT ============
   function init() {
     injectButton();
   }
 
   let lastUrl = location.href;
-  const observer = new MutationObserver(() => {
+  new MutationObserver(() => {
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       document.getElementById('tmdb-player-button')?.remove();
       setTimeout(init, 400);
     }
-  });
-  observer.observe(document, { subtree: true, childList: true });
+  }).observe(document, { subtree: true, childList: true });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
