@@ -103,5 +103,5 @@ Il progetto **non ospita contenuti** – incorpora solo player pubblici. L'utent
 ## 🛠️ Sviluppo
 
 ```bash
-git clone https://github.com/TUO-UTENTE/TMDB-Player-Italiano.git
+git clone [https://github.com/Kittystyle850/TMDB-Player-Italiano]
 cd TMDB-Player-Italiano
