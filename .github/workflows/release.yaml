@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Tipo di bump'
+        description: 'Tipo di bump versione'
         type: choice
         required: true
         default: 'patch'
@@ -14,6 +14,7 @@ on:
           - patch
           - minor
           - major
+          - none
 
 permissions:
   contents: write
@@ -30,7 +31,7 @@ jobs:
       !contains(github.event.head_commit.message, '[skip release]')
 
     steps:
-      - name: 📥 Checkout (con token per poter pushare)
+      - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -40,59 +41,78 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - name: 🎨 Verifica icone
         run: |
+          missing=0
           for s in 16 48 128; do
             if [ ! -f "icons/icon${s}.png" ]; then
               echo "❌ Manca icons/icon${s}.png"
-              exit 1
+              missing=1
             fi
           done
+          if [ $missing -eq 1 ]; then
+            echo ""
+            echo "Genera le icone con icon-generator.html e mettile in icons/"
+            exit 1
+          fi
           echo "✅ Icone OK"
+          ls -lh icons/
+
+      - name: 🔍 Lint manifest.json
+        run: |
+          node -e "
+            const m = require('./manifest.json');
+            const required = ['manifest_version', 'name', 'version', 'description', 'action'];
+            required.forEach(k => {
+              if (!m[k]) { console.error('❌ Manca campo:', k); process.exit(1); }
+            });
+            if (!/^\d+\.\d+\.\d+$/.test(m.version)) {
+              console.error('❌ Versione non valida (deve essere X.Y.Z):', m.version);
+              process.exit(1);
+            }
+            console.log('✅ manifest.json valido – v' + m.version + ' (' + m.name + ')');
+          "
 
       - name: 🔢 Calcola nuova versione
         id: bump
         run: |
-          # Leggi versione corrente da manifest.json
           CURRENT=$(node -p "require('./manifest.json').version")
-          echo "Versione corrente: $CURRENT"
+          echo "📦 Versione corrente: $CURRENT"
 
           MSG="${{ github.event.head_commit.message }}"
-          echo "Commit message: $MSG"
+          echo "📝 Commit message: $MSG"
 
-          # 1) Version override manuale: [version: X.Y.Z]
+          # 1) Override manuale: [version: X.Y.Z]
           MANUAL=$(echo "$MSG" | grep -oP '\[version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' || true)
           if [ -n "$MANUAL" ]; then
             NEW="$MANUAL"
-            echo "🎯 Override manuale: $NEW"
+            echo "🎯 Override manuale rilevato: $NEW"
           else
-            # Split semver
             MAJOR=$(echo "$CURRENT" | cut -d. -f1)
             MINOR=$(echo "$CURRENT" | cut -d. -f2)
             PATCH=$(echo "$CURRENT" | cut -d. -f3)
 
-            # 2) Rileva tipo di bump dal commit
-            if echo "$MSG" | grep -qE "BREAKING CHANGE|^[a-z]+(\(.+\))?!:"; then
-              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
-              echo "🔥 Bump MAJOR rilevato"
-            elif echo "$MSG" | grep -qE "^feat(\(.+\))?:"; then
-              MINOR=$((MINOR + 1)); PATCH=0
-              echo "✨ Bump MINOR rilevato (feat)"
-            else
-              PATCH=$((PATCH + 1))
-              echo "🐛 Bump PATCH"
-            fi
-
-            NEW="$MAJOR.$MINOR.$PATCH"
-
-            # Se è workflow_dispatch, applica scelta utente
+            # 2) Se workflow_dispatch, usa scelta utente
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               case "${{ inputs.bump }}" in
                 major) NEW="$((MAJOR + 1)).0.0" ;;
                 minor) NEW="$MAJOR.$((MINOR + 1)).0" ;;
                 patch) NEW="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+                none)  NEW="$CURRENT" ;;
               esac
+              echo "🎯 Bump manuale: $NEW"
+            # 3) Altrimenti rileva dal commit
+            elif echo "$MSG" | grep -qE "BREAKING CHANGE|^[a-z]+(\(.+\))?!:"; then
+              NEW="$((MAJOR + 1)).0.0"
+              echo "🔥 Bump MAJOR rilevato (breaking change)"
+            elif echo "$MSG" | grep -qE "^feat(\(.+\))?:"; then
+              NEW="$MAJOR.$((MINOR + 1)).0"
+              echo "✨ Bump MINOR rilevato (feat)"
+            else
+              NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+              echo "🐛 Bump PATCH (default)"
             fi
           fi
 
@@ -101,19 +121,19 @@ jobs:
           echo "new=$NEW" >> $GITHUB_OUTPUT
           echo "tag=v$NEW" >> $GITHUB_OUTPUT
 
-      - name: 🔍 Verifica se il tag esiste già
+      - name: 🔍 Verifica se il tag esiste
         id: check
         run: |
           if git rev-parse "refs/tags/${{ steps.bump.outputs.tag }}" >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Tag ${{ steps.bump.outputs.tag }} esiste già!"
-            echo "Salto release per evitare duplicati."
+            echo "⚠️  Tag ${{ steps.bump.outputs.tag }} esiste già — skip release"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✨ Nuovo tag da creare: ${{ steps.bump.outputs.tag }}"
           fi
 
       - name: ✏️ Aggiorna manifest.json e package.json
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && steps.bump.outputs.new != steps.bump.outputs.current
         run: |
           NEW="${{ steps.bump.outputs.new }}"
           node -e "
@@ -132,33 +152,18 @@ jobs:
           "
 
       - name: 📝 Commit del bump
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && steps.bump.outputs.new != steps.bump.outputs.current
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add manifest.json package.json
           if git diff --cached --quiet; then
-            echo "Nessuna modifica da committare"
+            echo "ℹ️  Nessuna modifica da committare"
           else
             git commit -m "chore(release): v${{ steps.bump.outputs.new }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Commit pushato"
+            echo "✅ Commit pushato: chore(release): v${{ steps.bump.outputs.new }}"
           fi
-
-      - name: 📦 Crea ZIP
-        if: steps.check.outputs.exists == 'false'
-        run: |
-          mkdir -p dist
-          ZIP="dist/tmdb-player-v${{ steps.bump.outputs.new }}.zip"
-          zip -r "$ZIP" \
-            manifest.json \
-            content.js \
-            content.css \
-            background.js \
-            popup.html \
-            popup.js \
-            icons/
-          echo "✅ ZIP: $(du -h "$ZIP" | cut -f1)"
 
       - name: 🔐 Prepara chiave privata
         if: steps.check.outputs.exists == 'false'
@@ -167,6 +172,7 @@ jobs:
         run: |
           if [ -z "$CRX_KEY" ]; then
             echo "❌ Secret CRX_PRIVATE_KEY non impostato!"
+            echo "Vai su Settings → Secrets and variables → Actions e aggiungilo."
             exit 1
           fi
           printf '%s\n' "$CRX_KEY" > "$RUNNER_TEMP/key.pem"
@@ -175,18 +181,18 @@ jobs:
             echo "❌ La chiave non è un PEM valido"
             exit 1
           fi
-          echo "✅ Chiave pronta"
+          echo "✅ Chiave privata pronta"
 
       - name: 📚 Installa dipendenze
         if: steps.check.outputs.exists == 'false'
         run: npm install
 
-      - name: 🔨 Crea CRX firmato
+      - name: 🔨 Crea ZIP + CRX firmato
         if: steps.check.outputs.exists == 'false'
         run: |
           node scripts/make-crx.js \
-            "dist/tmdb-player-v${{ steps.bump.outputs.new }}.zip" \
-            "dist/tmdb-player-v${{ steps.bump.outputs.new }}.crx" \
+            "${{ steps.bump.outputs.new }}" \
+            "dist" \
             "$RUNNER_TEMP/key.pem"
 
       - name: 🧹 Pulisci chiave
@@ -200,6 +206,7 @@ jobs:
           name: extension-v${{ steps.bump.outputs.new }}
           path: dist/*
           retention-days: 30
+          if-no-files-found: error
 
       - name: 🚀 Crea Release
         if: steps.check.outputs.exists == 'false'
@@ -223,10 +230,19 @@ jobs:
             2. Apri `chrome://extensions`
             3. Attiva **Modalità sviluppatore**
             4. **Trascina** il file `.crx` nella pagina
+            5. Conferma l'installazione
+
+            > 💡 Se Chrome blocca il CRX con `CRX_REQUIRED_PROOF_MISSING`, usa lo ZIP: estrailo e carica la cartella con **Carica estensione non pacchettizzata**.
 
             #### Firefox (`.zip`)
-            1. Apri `about:debugging#/runtime/this-firefox`
-            2. **Carica componente temporanea** → seleziona `manifest.json`
+            1. Scarica `tmdb-player-v${{ steps.bump.outputs.new }}.zip`
+            2. Estrailo in una cartella
+            3. Apri `about:debugging#/runtime/this-firefox`
+            4. **Carica componente temporanea** → seleziona `manifest.json`
+
+            ---
+
+            Vedi sotto ⬇️ le note di rilascio automatiche generate dai commit.
 
       - name: 📋 Riepilogo
         run: |
@@ -235,7 +251,7 @@ jobs:
           if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
             echo "⏭️ **Tag già esistente** — nessuna release creata." >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ **Release pubblicata**" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Release pubblicata con successo**" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "| Info | Valore |" >> $GITHUB_STEP_SUMMARY
             echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -243,11 +259,14 @@ jobs:
             echo "| Nuova versione | \`${{ steps.bump.outputs.new }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Tag | \`${{ steps.bump.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### File generati" >> $GITHUB_STEP_SUMMARY
+            echo "### 📦 File generati" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo "| File | Dimensione |" >> $GITHUB_STEP_SUMMARY
             echo "|------|-----------|" >> $GITHUB_STEP_SUMMARY
             for f in dist/*; do
               [ -f "$f" ] || continue
               echo "| \`$(basename "$f")\` | $(du -h "$f" | cut -f1) |" >> $GITHUB_STEP_SUMMARY
             done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 [Vai alla Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.bump.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
           fi
