@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "TMDB Player – Streaming Italiano",
+  "version": "1.1.0",
+  "description": "Aggiunge un pulsante Play alle pagine di TheMovieDB e riproduce film e serie TV in italiano.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://www.themoviedb.org/*",
+    "https://vixsrc.to/*",
+    "https://vidsrc.net/*",
+    "https://vidsrc.to/*",
+    "https://www.2embed.cc/*",
+    "https://multiembed.mov/*",
+    "https://embed.su/*",
+    "https://vidlink.pro/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.themoviedb.org/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TMDB Player",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": { "service_worker": "background.js" },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tmdb-player-it@example.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}
