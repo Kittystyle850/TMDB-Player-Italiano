@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TMDB Player – Streaming Italiano",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Aggiunge un pulsante Play alle pagine di TheMovieDB e riproduce film e serie TV in italiano.",
   "author": "TMDB Player",
   "permissions": [
