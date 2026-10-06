@@ -3,20 +3,15 @@
  * Crea il ZIP e il CRX firmato dell'estensione.
  *
  * Uso: node scripts/make-crx.js <version> <outputDir> <keyPath>
- *
- * Esempio:
- *   node scripts/make-crx.js 1.2.1 dist /tmp/key.pem
  */
 
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const crx3 = require('crx3');
-const { Readable } = require('stream');
 
 const ROOT = path.resolve(__dirname, '..');
 
-// File e cartelle da includere nell'estensione
 const INCLUDE = [
   'manifest.json',
   'content.js',
@@ -27,11 +22,9 @@ const INCLUDE = [
   'icons'
 ];
 
-// ---------- Utility ----------
 function log(msg) { console.log(msg); }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
 
-// ---------- Crea ZIP in Node.js ----------
 function createZip(outputPath) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
@@ -76,7 +69,6 @@ function createZip(outputPath) {
   });
 }
 
-// ---------- MAIN ----------
 async function main() {
   const [version, outputDir, keyPath] = process.argv.slice(2);
 
@@ -90,7 +82,6 @@ async function main() {
   log(`   Chiave:     ${keyPath}`);
   log('');
 
-  // Verifica chiave
   if (!fs.existsSync(keyPath)) {
     fail(`Chiave privata non trovata: ${keyPath}`);
   }
@@ -101,7 +92,6 @@ async function main() {
   log('✅ Chiave privata valida');
   log('');
 
-  // Prepara output
   fs.mkdirSync(outputDir, { recursive: true });
 
   const zipPath = path.join(outputDir, `tmdb-player-v${version}.zip`);
@@ -118,12 +108,18 @@ async function main() {
   log('');
 
   // 2. Crea CRX
+  // crx3 si aspetta un array di file da includere, non uno stream.
+  // Gli passiamo i file dell'estensione e le opzioni per scrivere direttamente il .crx
   log('🔐 Creo il CRX firmato...');
   try {
-    const zipBuffer = fs.readFileSync(zipPath);
-    const zipStream = Readable.from(zipBuffer);
-    const crxBuffer = await crx3(zipStream, { keyPath });
-    fs.writeFileSync(crxPath, crxBuffer);
+    const files = INCLUDE.map(item => path.join(ROOT, item));
+
+    await crx3(files, {
+      keyPath: keyPath,
+      crxPath: crxPath,
+      zipPath: zipPath
+    });
+
     const crxSize = fs.statSync(crxPath).size;
     log(`✅ CRX creato: ${path.basename(crxPath)} (${(crxSize / 1024).toFixed(1)} KB)`);
   } catch (e) {
