@@ -1,12 +1,13 @@
 {
   "name": "tmdb-player-extension",
-  "version": "1.2.1",
+  "version": "1.2.0",
   "description": "Estensione browser per lo streaming in italiano su TheMovieDB",
   "private": true,
   "scripts": {
     "build:crx": "node scripts/make-crx.js"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "crx3": "^1.1.1"
   },
   "engines": {
