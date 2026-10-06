@@ -6,6 +6,8 @@
 (function () {
   'use strict';
 
+  console.log('[TMDB Player] v1.3.0 caricato');
+
   // ============ SERVER CONFIGURATI ============
   const SERVERS = {
     vixsrc: {
@@ -138,7 +140,7 @@
             <div class="tmdb-player-spinner"></div>
             <p>Caricamento in corso…</p>
           </div>
-          <iframe id="tmdb-player-iframe" allowfullscreen
+          <iframe id="tmdb-player-iframe"
                   referrerpolicy="origin"
                   allow="autoplay; encrypted-media; picture-in-picture; fullscreen"></iframe>
         </div>
