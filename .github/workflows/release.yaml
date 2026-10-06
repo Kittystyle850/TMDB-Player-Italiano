@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Evita loop infinito: salta se il commit è generato dal bot
     if: |
       !contains(github.event.head_commit.message, '[skip ci]') &&
       !contains(github.event.head_commit.message, '[skip release]')
@@ -41,7 +40,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: 🎨 Verifica icone
         run: |
@@ -84,7 +82,6 @@ jobs:
           MSG="${{ github.event.head_commit.message }}"
           echo "📝 Commit message: $MSG"
 
-          # 1) Override manuale: [version: X.Y.Z]
           MANUAL=$(echo "$MSG" | grep -oP '\[version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' || true)
           if [ -n "$MANUAL" ]; then
             NEW="$MANUAL"
@@ -94,7 +91,6 @@ jobs:
             MINOR=$(echo "$CURRENT" | cut -d. -f2)
             PATCH=$(echo "$CURRENT" | cut -d. -f3)
 
-            # 2) Se workflow_dispatch, usa scelta utente
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               case "${{ inputs.bump }}" in
                 major) NEW="$((MAJOR + 1)).0.0" ;;
@@ -103,7 +99,6 @@ jobs:
                 none)  NEW="$CURRENT" ;;
               esac
               echo "🎯 Bump manuale: $NEW"
-            # 3) Altrimenti rileva dal commit
             elif echo "$MSG" | grep -qE "BREAKING CHANGE|^[a-z]+(\(.+\))?!:"; then
               NEW="$((MAJOR + 1)).0.0"
               echo "🔥 Bump MAJOR rilevato (breaking change)"
@@ -239,10 +234,6 @@ jobs:
             2. Estrailo in una cartella
             3. Apri `about:debugging#/runtime/this-firefox`
             4. **Carica componente temporanea** → seleziona `manifest.json`
-
-            ---
-
-            Vedi sotto ⬇️ le note di rilascio automatiche generate dai commit.
 
       - name: 📋 Riepilogo
         run: |
