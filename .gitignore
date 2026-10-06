@@ -1,0 +1,23 @@
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Build output
+dist/
+*.crx
+*.zip
+
+# Chiavi private (MAI committare!)
+key.pem
+*.pem
+!manifest.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
