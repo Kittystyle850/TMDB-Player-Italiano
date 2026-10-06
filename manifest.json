@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
   "name": "TMDB Player – Streaming Italiano",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Aggiunge un pulsante Play alle pagine di TheMovieDB e riproduce film e serie TV in italiano.",
   "author": "TMDB Player",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "https://www.themoviedb.org/*",
     "https://vixsrc.to/*",
@@ -17,9 +20,15 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://www.themoviedb.org/*"],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "https://www.themoviedb.org/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -35,7 +44,9 @@
   },
   "background": {
     "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "scripts": [
+      "background.js"
+    ]
   },
   "icons": {
     "16": "icons/icon16.png",
@@ -47,7 +58,9 @@
       "id": "tmdb-player-it@example.com",
       "strict_min_version": "109.0",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": [
+          "none"
+        ]
       }
     }
   }
