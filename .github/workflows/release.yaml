@@ -15,6 +15,11 @@ on:
           - minor
           - major
           - none
+      keep:
+        description: 'Numero di release da mantenere (default: 5)'
+        type: number
+        required: false
+        default: 5
 
 permissions:
   contents: write
@@ -225,15 +230,44 @@ jobs:
             2. Apri `chrome://extensions`
             3. Attiva **Modalità sviluppatore**
             4. **Trascina** il file `.crx` nella pagina
-            5. Conferma l'installazione
 
-            > 💡 Se Chrome blocca il CRX con `CRX_REQUIRED_PROOF_MISSING`, usa lo ZIP: estrailo e carica la cartella con **Carica estensione non pacchettizzata**.
+            > 💡 Se Chrome blocca il CRX, usa lo ZIP con cartella: estrailo e carica la cartella con **Carica estensione non pacchettizzata**.
 
-            #### Firefox (`.zip`)
-            1. Scarica `tmdb-player-v${{ steps.bump.outputs.new }}.zip`
-            2. Estrailo in una cartella
-            3. Apri `about:debugging#/runtime/this-firefox`
-            4. **Carica componente temporanea** → seleziona `manifest.json`
+            #### Firefox / AMO (`.zip` flat)
+            Usa `tmdb-player-v${{ steps.bump.outputs.new }}.zip` (senza `-folder`) per caricarlo su addons.mozilla.org.
+
+            #### Estrazione manuale (`.zip` con cartella)
+            Usa `tmdb-player-v${{ steps.bump.outputs.new }}-folder.zip`: estrailo e carica la cartella con **Load unpacked**.
+
+      - name: 🗑️ Cancella release vecchie
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: ${{ github.event_name == 'workflow_dispatch' && inputs.keep || 5 }}
+        run: |
+          echo "🧹 Mantengo solo le ultime $KEEP release"
+
+          # Ottieni la lista dei tag ordinati dal più recente
+          TAGS=$(gh release list --limit 100 --json tagName,createdAt \
+            --jq "sort_by(.createdAt) | reverse | .[${KEEP}:] | .[].tagName")
+
+          if [ -z "$TAGS" ]; then
+            echo "✅ Nessuna release da cancellare"
+            exit 0
+          fi
+
+          echo "📋 Release da cancellare:"
+          echo "$TAGS"
+
+          COUNT=0
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "🗑️  Cancello $tag..."
+            gh release delete "$tag" --yes --cleanup-tag || echo "⚠️  Fallito: $tag"
+            COUNT=$((COUNT + 1))
+          done <<< "$TAGS"
+
+          echo "✅ Cancellate $COUNT release vecchie"
 
       - name: 📋 Riepilogo
         run: |
@@ -249,6 +283,7 @@ jobs:
             echo "| Versione precedente | \`${{ steps.bump.outputs.current }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Nuova versione | \`${{ steps.bump.outputs.new }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "| Tag | \`${{ steps.bump.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Release mantenute | \`${{ github.event_name == 'workflow_dispatch' && inputs.keep || 5 }}\` |" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📦 File generati" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
