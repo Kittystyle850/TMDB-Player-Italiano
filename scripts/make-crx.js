@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
 const crx3 = require('crx3');
+const { Readable } = require('stream');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -30,7 +31,7 @@ const INCLUDE = [
 function log(msg) { console.log(msg); }
 function fail(msg) { console.error('❌ ' + msg); process.exit(1); }
 
-// ---------- Crea ZIP in Node.js (compatibile con crx3) ----------
+// ---------- Crea ZIP in Node.js ----------
 function createZip(outputPath) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(outputPath);
@@ -120,7 +121,8 @@ async function main() {
   log('🔐 Creo il CRX firmato...');
   try {
     const zipBuffer = fs.readFileSync(zipPath);
-    const crxBuffer = await crx3(zipBuffer, { keyPath });
+    const zipStream = Readable.from(zipBuffer);
+    const crxBuffer = await crx3(zipStream, { keyPath });
     fs.writeFileSync(crxPath, crxBuffer);
     const crxSize = fs.statSync(crxPath).size;
     log(`✅ CRX creato: ${path.basename(crxPath)} (${(crxSize / 1024).toFixed(1)} KB)`);
